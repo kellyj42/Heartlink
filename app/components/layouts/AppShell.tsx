@@ -5,6 +5,7 @@ import Image from "next/image";
 import Link from "next/link";
 import {
   Bell,
+  FileText,
   Home,
   LogIn,
   MessageCircle,
@@ -18,6 +19,7 @@ const navLinks = [
   { label: "Matches", href: "/matches", Icon: Sparkles },
   { label: "Requests", href: "/requests", Icon: Bell },
   { label: "Messages", href: "/messages", Icon: MessageCircle },
+  { label: "Feedback", href: "/feedback", Icon: FileText },
   { label: "Profile", href: "/dashboard", Icon: UserRound },
 ];
 

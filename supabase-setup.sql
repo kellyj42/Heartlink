@@ -4,10 +4,20 @@ create table if not exists public.profiles (
   email text unique,
   gender text check (gender in ('Male', 'Female')),
   dating_goal text,
+  role text not null default 'user' check (role in ('user', 'moderator', 'admin')),
+  status text not null default 'active' check (status in ('active', 'paused', 'review', 'blocked')),
   matchmaking_answers jsonb,
   created_at timestamptz not null default timezone('utc', now()),
   updated_at timestamptz not null default timezone('utc', now())
 );
+alter table public.profiles
+add column if not exists role text not null default 'user'
+check (role in ('user', 'moderator', 'admin'));
+alter table public.profiles
+add column if not exists status text not null default 'active'
+check (status in ('active', 'paused', 'review', 'blocked'));
+create index if not exists profiles_role_idx on public.profiles(role);
+create index if not exists profiles_status_idx on public.profiles(status);
 create extension if not exists pgcrypto;
 create table if not exists public.connection_requests (
   id uuid primary key default gen_random_uuid(),
