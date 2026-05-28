@@ -1,5 +1,7 @@
 import { supabase } from "@/app/lib/supabase";
 
+const profilePhotosBucket = "profile-photos";
+
 export type MatchmakingAnswers = {
   photo: string;
   moreImages?: string[];
@@ -81,6 +83,85 @@ export function getDefaultMatchmakingAnswers(
     communicationStyle: "Texting",
     relationshipPace: "Take things slowly",
     partnerPreference: "Kind, honest, and respectful",
+  };
+}
+
+function isDataUrl(value: string) {
+  return value.startsWith("data:");
+}
+
+function getDataUrlExtension(dataUrl: string) {
+  const match = dataUrl.match(/^data:image\/([a-zA-Z0-9.+-]+);base64,/);
+  const extension = match?.[1]?.toLowerCase();
+
+  if (!extension) {
+    return "jpg";
+  }
+
+  return extension === "jpeg" ? "jpg" : extension;
+}
+
+async function uploadProfileImage({
+  userId,
+  dataUrl,
+  name,
+}: {
+  userId: string;
+  dataUrl: string;
+  name: string;
+}) {
+  const response = await fetch(dataUrl);
+  const blob = await response.blob();
+  const extension = getDataUrlExtension(dataUrl);
+  const filePath = `${userId}/${name}-${Date.now()}.${extension}`;
+
+  const { error } = await supabase.storage
+    .from(profilePhotosBucket)
+    .upload(filePath, blob, {
+      cacheControl: "3600",
+      contentType: blob.type || `image/${extension}`,
+      upsert: true,
+    });
+
+  if (error) {
+    throw error;
+  }
+
+  const { data } = supabase.storage
+    .from(profilePhotosBucket)
+    .getPublicUrl(filePath);
+
+  return data.publicUrl;
+}
+
+async function uploadAnswerImages(
+  userId: string,
+  answers: MatchmakingAnswers,
+): Promise<MatchmakingAnswers> {
+  const photo = isDataUrl(answers.photo)
+    ? await uploadProfileImage({
+        userId,
+        dataUrl: answers.photo,
+        name: "profile",
+      }).catch(() => answers.photo)
+    : answers.photo;
+
+  const moreImages = await Promise.all(
+    (answers.moreImages ?? []).map((image, index) =>
+      isDataUrl(image)
+        ? uploadProfileImage({
+            userId,
+            dataUrl: image,
+            name: `gallery-${index + 1}`,
+          }).catch(() => image)
+        : image,
+    ),
+  );
+
+  return {
+    ...answers,
+    photo,
+    moreImages,
   };
 }
 
@@ -228,20 +309,25 @@ export async function getUserProfileById(id: string) {
 }
 
 export async function saveMatchmakingAnswers(answers: MatchmakingAnswers) {
-  const currentUser = await getCurrentUser();
-
-  if (!currentUser) {
-    return { ok: false, message: "Please login before answering questions." };
-  }
-
   try {
+    const currentUser = await getCurrentUser();
+
+    if (!currentUser) {
+      return { ok: false, message: "Please login before answering questions." };
+    }
+
+    const answersWithUploadedImages = await uploadAnswerImages(
+      currentUser.id,
+      answers,
+    );
+
     await upsertUserProfile({
       id: currentUser.id,
       name: currentUser.name,
       email: currentUser.email,
-      gender: answers.gender as "Male" | "Female",
+      gender: answersWithUploadedImages.gender as "Male" | "Female",
       datingGoal: currentUser.datingGoal,
-      matchmakingAnswers: answers,
+      matchmakingAnswers: answersWithUploadedImages,
     });
 
     return { ok: true, message: "Your matchmaking answers have been saved." };

@@ -78,7 +78,7 @@ export default function Auth({ initialMode = "signin" }: AuthProps) {
           router.push("/questions");
         } else {
           setMessage(
-            "Account created. Check your email to confirm your signup, then login.",
+            "Account created. Please sign in to continue to your questions.",
           );
         }
       } else {
@@ -113,7 +113,7 @@ export default function Auth({ initialMode = "signin" }: AuthProps) {
 
         setIsSuccess(true);
         setMessage("Signed in successfully.");
-        router.push("/matches");
+        router.push("/questions");
       }
     } catch (error) {
       const errorMessage =
